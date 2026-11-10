@@ -186,6 +186,9 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
 #authWall .btn{width:100%}
 #authError{color:#b23c3c;white-space:pre-wrap;font-size:13px}
 
+/* Permite arrastar horizontalmente a tabela de pagamentos em celulares. */
+#financeList { width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; touch-action:pan-x pan-y; }
+#financeList table { min-width:760px; }
 </style>
 </head>
 <body>
@@ -231,7 +234,7 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
   <div class="tablewrap" id="contestTable"></div>
  </div></section>
  <section id="calendar" class="page hidden"><div class="panel"><div class="panelhead"><h2>Calendário de prazos e provas</h2></div><p class="muted">Datas cadastradas em cada concurso, ordenadas da mais próxima para a mais distante.</p><div id="calendarList"></div></div></section>
- <section id="finance" class="page hidden"><div class="panel"><div class="panelhead"><h2>Controle de pagamentos</h2></div><div id="financeList"></div></div></section>
+ <section id="finance" class="page hidden"><div class="panel"><div class="panelhead"><h2>Controle de pagamentos</h2></div><div class="tablewrap" id="financeList" role="region" aria-label="Tabela de pagamentos com rolagem horizontal" tabindex="0"></div></div></section>
  <section id="study" class="page hidden"><div class="panel"><div class="panelhead"><h2>Organização dos estudos</h2></div><p class="muted">Use os campos de matérias, conteúdo programático e observações dentro de cada concurso para acompanhar sua preparação.</p><div id="studyList"></div></div></section>
  <section id="tools" class="page hidden"><div class="panel"><div class="panelhead"><h2>Pesquisar novos concursos</h2></div><p class="muted">Pesquise separadamente para você ou para sua namorada. Os resultados abrem em uma nova aba; depois cadastre os dados importantes aqui.</p><div class="formgrid">
   <div class="field span2"><label>O que deseja pesquisar?</label><input id="webQuery" placeholder="Ex.: concurso técnico de TI Espírito Santo 2026"></div>
