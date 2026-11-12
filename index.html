@@ -190,6 +190,7 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
 #financeList { width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; touch-action:pan-x pan-y; }
 #financeList table { min-width:760px; }
 
+.alert-summary{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.alert-summary .badge{font-size:13px;padding:8px 11px}.alert-entry{padding:14px 0;border-bottom:1px solid var(--line)}.alert-entry h3{font-size:15px;margin:0 0 6px}.alert-entry p{margin:4px 0;color:var(--muted);line-height:1.5}.alert-entry .actions{margin-top:9px;flex-wrap:wrap}.alert-level-high{border-left:4px solid #d74a4a;padding-left:12px}.alert-level-medium{border-left:4px solid #e3aa39;padding-left:12px}.alert-level-low{border-left:4px solid #5084d8;padding-left:12px}
 /* Marca-texto individual por conteúdo na guia Estudos */
 .study-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:12px 0 4px;font-size:12px;color:var(--muted)}
 .study-key{border-radius:5px;padding:3px 7px;color:#243042}
@@ -231,6 +232,7 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
   <button data-page="calendar"><span class="navicon">◷</span> Datas e provas</button>
   <button data-page="finance"><span class="navicon">R$</span> Pagamentos</button>
   <button data-page="study"><span class="navicon">▣</span> Estudos</button>
+  <button data-page="alerts"><span class="navicon">⚠</span> Central de Alertas <span id="alertNavCount" class="badge b-red hidden" aria-label="Alertas identificados">0</span></button>
   <button data-page="tools"><span class="navicon">⌕</span> Pesquisar concursos</button>
   <button data-page="backup"><span class="navicon">⚙</span> Dados e backup</button>
  </nav>
@@ -265,6 +267,7 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
  <section id="calendar" class="page hidden"><div class="panel"><div class="panelhead"><h2>Calendário de prazos e provas</h2></div><p class="muted">Datas cadastradas em cada concurso, ordenadas da mais próxima para a mais distante.</p><div id="calendarList"></div></div></section>
  <section id="finance" class="page hidden"><div class="panel"><div class="panelhead"><h2>Controle de pagamentos</h2></div><div class="tablewrap" id="financeList" role="region" aria-label="Tabela de pagamentos com rolagem horizontal" tabindex="0"></div></div></section>
  <section id="study" class="page hidden"><div class="panel"><div class="panelhead"><h2>Organização dos estudos</h2></div><p class="muted">Use os campos de matérias, conteúdo programático e observações dentro de cada concurso para acompanhar sua preparação.</p><div id="studyList"></div></div></section>
+ <section id="alerts" class="page hidden"><div class="panel"><div class="panelhead"><h2>Central de Alertas</h2><button class="btn secondary small" onclick="renderAlerts()">Verificar novamente</button></div><p class="muted">Análise automática dos concursos cadastrados. Detecta conflitos e inconsistências, mas não consulta os editais nem confirma horários das provas. Confira sempre as informações oficiais.</p><div class="alert-summary" id="alertSummary" aria-live="polite"></div><div id="alertList" aria-live="polite"></div></div></section>
  <section id="tools" class="page hidden"><div class="panel"><div class="panelhead"><h2>Pesquisar novos concursos</h2></div><p class="muted">Pesquise separadamente para você ou para sua namorada. Os resultados abrem em uma nova aba; depois cadastre os dados importantes aqui.</p><div class="formgrid">
   <div class="field span2"><label>O que deseja pesquisar?</label><input id="webQuery" placeholder="Ex.: concurso técnico de TI Espírito Santo 2026"></div>
   <div class="field"><label>Pesquisar para</label><select id="webPerson"><option>Eu</option><option>Namorada</option></select></div>
@@ -307,11 +310,47 @@ function filtered(){return items.filter(x=>person()==='Todos'||x.person===person
 function dateBR(d){if(!d)return '—';let p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d}
 function days(d){if(!d)return null;let a=new Date(d+'T00:00:00'),b=new Date();b.setHours(0,0,0,0);return Math.ceil((a-b)/86400000)}
 function badge(t){let c=['Inscrito','Pago','Homologado'].includes(t)?'b-green':['Inscrição aberta','Pendente'].includes(t)?'b-amber':['Cancelado','Não pago'].includes(t)?'b-red':'b-blue';return `<span class="badge ${c}">${esc(t||'Não informado')}</span>`}
-function showPage(p){currentPage=p;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('hidden',e.id!==p));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Visão geral',contests:'Concursos cadastrados',calendar:'Datas e provas',finance:'Pagamentos',study:'Estudos',tools:'Pesquisar concursos',backup:'Dados e backup'})[p];render()}
+function showPage(p){currentPage=p;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('hidden',e.id!==p));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Visão geral',contests:'Concursos cadastrados',calendar:'Datas e provas',finance:'Pagamentos',study:'Estudos',alerts:'Central de Alertas',tools:'Pesquisar concursos',backup:'Dados e backup'})[p];render()}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>showPage(b.dataset.goto));
 document.getElementById('personTop').onchange=render;
-function render(){renderDashboard();renderTable();renderCalendar();renderFinance();renderStudy()}
+function render(){renderDashboard();renderTable();renderCalendar();renderFinance();renderStudy();renderAlerts()}
+function renderAlerts(){
+ const out=[], all=filtered(), today=new Date();today.setHours(0,0,0,0);
+ const add=(level,title,detail,ids=[])=>out.push({level,title,detail,ids});
+ const valid=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(new Date(d+'T00:00:00').getTime());
+ const active=x=>x.status!=='Cancelado';
+ const label=x=>x.name||'Concurso sem nome';
+ const upcoming=d=>valid(d)&&days(d)>=0;
+ for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){
+   const a=all[i],b=all[j];if(!active(a)||!active(b)||!valid(a.exam)||a.exam!==b.exam)continue;
+   if(a.person===b.person){add('high','Provas na mesma data',`${label(a)} e ${label(b)} estão marcados para ${dateBR(a.exam)} (${a.person||'responsável não informado'}). Confira horários, locais e possibilidade de realizar ambas.`,[a.id,b.id]);}
+   else add('low','Provas na mesma data — pessoas diferentes',`${label(a)} (${a.person}) e ${label(b)} (${b.person}) têm prova em ${dateBR(a.exam)}. Pode exigir organização de deslocamento, mas não é necessariamente um conflito.`,[a.id,b.id]);
+ }
+ all.forEach(x=>{
+  if(!active(x))return;
+  const id=[x.id],name=label(x);
+  if(valid(x.start)&&valid(x.end)&&x.start>x.end)add('high','Período de inscrição inconsistente',`${name}: início ${dateBR(x.start)} depois do fim ${dateBR(x.end)}.`,id);
+  if(valid(x.exemptionStart)&&valid(x.exemptionDue)&&x.exemptionStart>x.exemptionDue)add('high','Período de isenção inconsistente',`${name}: início ${dateBR(x.exemptionStart)} depois do fim ${dateBR(x.exemptionDue)}.`,id);
+  if(valid(x.start)&&valid(x.exam)&&x.start>x.exam)add('high','Prova antes do início das inscrições',`${name}: prova em ${dateBR(x.exam)}, mas inscrições começam em ${dateBR(x.start)}.`,id);
+  if(valid(x.end)&&valid(x.exam)&&x.end>x.exam)add('medium','Inscrições terminam depois da prova',`${name}: inscrições até ${dateBR(x.end)} e prova em ${dateBR(x.exam)}. Confira o edital.`,id);
+  if(valid(x.exemptionDue)&&valid(x.exam)&&x.exemptionDue>x.exam)add('medium','Isenção termina depois da prova',`${name}: isenção até ${dateBR(x.exemptionDue)}, prova em ${dateBR(x.exam)}.`,id);
+  if(valid(x.payDue)&&valid(x.exam)&&x.payDue>x.exam)add('medium','Pagamento vence depois da prova',`${name}: vencimento ${dateBR(x.payDue)}, prova ${dateBR(x.exam)}. Confira as datas.`,id);
+  if(valid(x.result)&&valid(x.exam)&&x.result<x.exam)add('medium','Resultado previsto antes da prova',`${name}: resultado ${dateBR(x.result)}, prova ${dateBR(x.exam)}.`,id);
+  const d=days(x.exam);if(d!==null&&d>=0&&d<=7)add('medium','Prova próxima',`${name}: prova ${d===0?'hoje':`em ${d} dia(s)`} (${dateBR(x.exam)}). Confira horário, local e documentos.`,id);
+  const end=days(x.end);if(end!==null&&end>=0&&end<=3&&!['Inscrito','Homologado','Cancelado'].includes(x.status))add('medium','Prazo de inscrição próximo',`${name}: inscrições terminam ${end===0?'hoje':`em ${end} dia(s)`} (${dateBR(x.end)}). Situação atual: ${x.status||'não informada'}.`,id);
+  const ex=days(x.exemptionDue);if(ex!==null&&ex>=0&&ex<=3)add('medium','Prazo de isenção próximo',`${name}: prazo termina ${ex===0?'hoje':`em ${ex} dia(s)`} (${dateBR(x.exemptionDue)}). Confira se já solicitou.`,id);
+  const pay=days(x.payDue);if(pay!==null&&pay>=0&&pay<=3&&['Pendente','Não pago'].includes(x.payment))add('high','Pagamento pendente com prazo próximo',`${name}: vencimento ${dateBR(x.payDue)}; pagamento marcado como ${x.payment}. Confira se há isenção deferida.`,id);
+  if(!x.exam&&['Inscrito','Homologado'].includes(x.status))add('low','Data da prova não informada',`${name}: situação ${x.status}, mas sem data da prova cadastrada.`,id);
+ });
+ const rank={high:0,medium:1,low:2};out.sort((a,b)=>rank[a.level]-rank[b.level]);
+ const counts={high:0,medium:0,low:0};out.forEach(a=>counts[a.level]++);
+ const count=document.getElementById('alertNavCount');if(count){count.textContent=out.length;count.classList.toggle('hidden',!out.length)}
+ const summary=document.getElementById('alertSummary'),list=document.getElementById('alertList');if(!summary||!list)return;
+ summary.innerHTML=`<span class="badge b-red">${counts.high} urgente(s)</span><span class="badge b-amber">${counts.medium} atenção</span><span class="badge b-blue">${counts.low} informativo(s)</span>`;
+ list.innerHTML=out.length?out.map(a=>`<article class="alert-entry alert-level-${a.level}"><h3>${a.level==='high'?'🔴':a.level==='medium'?'🟠':'🔵'} ${esc(a.title)}</h3><p>${esc(a.detail)}</p><div class="actions">${a.ids.filter(id=>all.some(x=>x.id===id)).map(id=>`<button type="button" class="btn secondary small" data-alert-edit="${esc(id)}">Editar concurso: ${esc((all.find(x=>x.id===id)||{}).name||'Abrir')}</button>`).join('')}</div></article>`).join(''):'<div class="empty">Nenhum alerta encontrado nos dados cadastrados. Continue conferindo os editais oficiais.</div>';
+ list.querySelectorAll('[data-alert-edit]').forEach(b=>b.onclick=()=>editItem(b.dataset.alertEdit));
+}
 function renderDashboard(){let a=filtered(),today=new Date();document.getElementById('sTotal').textContent=a.length;document.getElementById('sOpen').textContent=a.filter(x=>x.status==='Inscrição aberta').length;document.getElementById('sSoon').textContent=a.filter(x=>{let d=days(x.exam);return d!==null&&d>=0&&d<=30}).length;document.getElementById('sPay').textContent=a.filter(x=>x.payment==='Pendente'||x.payment==='Não pago').length;
  let dates=[];a.forEach(x=>[['Início da solicitação de isenção',x.exemptionStart],['Último dia para solicitar isenção',x.exemptionDue],['Inscrições encerram',x.end],['Vencimento da taxa',x.payDue],['Data da prova',x.exam],['Início das inscrições',x.start]].forEach(([label,d])=>{let n=days(d);if(d&&n!==null&&n>=0)dates.push({x,label,d,n})}));dates.sort((a,b)=>a.n-b.n);
  document.getElementById('upcoming').innerHTML=dates.slice(0,6).map(o=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)"><div><b>${esc(o.x.name)}</b><div class="sub">${esc(o.label)} • ${dateBR(o.d)}</div></div><span class="badge ${o.n<=7?'b-amber':'b-blue'}">${o.n===0?'Hoje':o.n===1?'Amanhã':o.n+' dias'}</span></div>`).join('')||'<div class="empty">Nenhuma data futura cadastrada.</div>';
