@@ -219,6 +219,8 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
 .study-filter select{max-width:100%;min-width:200px;flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
 .study-apply{display:none}
 @media (pointer:coarse){.study-apply{display:inline-flex}.study-selectable-text{-webkit-touch-callout:default;touch-action:auto}}
+
+.ai-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}.ai-choice{display:flex;gap:9px;align-items:center;border:1px solid var(--line);padding:10px;border-radius:9px}.ai-choice input{width:auto}.ai-result{border:1px solid var(--line);border-radius:11px;padding:14px;margin:11px 0}.ai-result h3{font-size:15px;margin:0 0 8px}.ai-tag{display:inline-block;border-radius:7px;background:var(--blue2);padding:3px 8px;margin:3px;font-size:12px}.ai-meter{height:9px;background:#edf0f5;border-radius:9px;overflow:hidden;margin:9px 0}.ai-meter>div{height:100%;background:#3157d5}.ai-evidence{font-size:13px;color:#536078;padding:6px 0;border-top:1px solid var(--line)}.ai-note{font-size:13px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -232,6 +234,7 @@ footer{text-align:center;color:#8993a6;font-size:12px;padding:15px}
   <button data-page="calendar"><span class="navicon">◷</span> Datas e provas</button>
   <button data-page="finance"><span class="navicon">R$</span> Pagamentos</button>
   <button data-page="study"><span class="navicon">▣</span> Estudos</button>
+  <button data-page="ai"><span class="navicon">✦</span> Análise Inteligente</button>
   <button data-page="alerts"><span class="navicon">⚠</span> Central de Alertas <span id="alertNavCount" class="badge b-red hidden" aria-label="Alertas identificados">0</span></button>
   <button data-page="tools"><span class="navicon">⌕</span> Pesquisar concursos</button>
   <button data-page="backup"><span class="navicon">⚙</span> Dados e backup</button>
@@ -310,11 +313,22 @@ function filtered(){return items.filter(x=>person()==='Todos'||x.person===person
 function dateBR(d){if(!d)return '—';let p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d}
 function days(d){if(!d)return null;let a=new Date(d+'T00:00:00'),b=new Date();b.setHours(0,0,0,0);return Math.ceil((a-b)/86400000)}
 function badge(t){let c=['Inscrito','Pago','Homologado'].includes(t)?'b-green':['Inscrição aberta','Pendente'].includes(t)?'b-amber':['Cancelado','Não pago'].includes(t)?'b-red':'b-blue';return `<span class="badge ${c}">${esc(t||'Não informado')}</span>`}
-function showPage(p){currentPage=p;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('hidden',e.id!==p));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Visão geral',contests:'Concursos cadastrados',calendar:'Datas e provas',finance:'Pagamentos',study:'Estudos',alerts:'Central de Alertas',tools:'Pesquisar concursos',backup:'Dados e backup'})[p];render()}
+function showPage(p){currentPage=p;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('hidden',e.id!==p));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Visão geral',contests:'Concursos cadastrados',calendar:'Datas e provas',finance:'Pagamentos',study:'Estudos',ai:'Análise Inteligente',alerts:'Central de Alertas',tools:'Pesquisar concursos',backup:'Dados e backup'})[p];render()}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>showPage(b.dataset.goto));
 document.getElementById('personTop').onchange=render;
-function render(){renderDashboard();renderTable();renderCalendar();renderFinance();renderStudy();renderAlerts()}
+function render(){renderDashboard();renderTable();renderCalendar();renderFinance();renderStudy();renderAlerts();renderAISelection()}
+let aiSelected=new Set(),aiLastKey='',aiBusy=false;
+function aiCandidates(){return filtered().filter(x=>x.status!=='Cancelado').map(x=>{let data={};try{data=JSON.parse(x.subjectTopics||'{}')}catch(e){};if(!Object.keys(data).length)(x.subjects||'').split(/\n|,/).map(t=>t.trim()).filter(Boolean).forEach(t=>data[t]=[]);return {id:String(x.id),name:x.name||'Sem nome',person:x.person||'',subjects:Object.entries(data).map(([subject,topics])=>({subject,topics:Array.isArray(topics)?topics.filter(t=>typeof t==='string'&&t.trim()):[]}))}}).filter(x=>x.subjects.length)}
+function renderAISelection(){const el=document.getElementById('aiSelection');if(!el)return;const a=aiCandidates();const allowed=new Set(a.map(x=>x.id));aiSelected=new Set([...aiSelected].filter(id=>allowed.has(id)));el.innerHTML=a.length?a.map(x=>`<label class="ai-choice"><input type="checkbox" data-ai-id="${esc(x.id)}" ${aiSelected.has(x.id)?'checked':''}><span><b>${esc(x.name)}</b><br><small class="muted">${esc(x.person)} • ${x.subjects.length} matéria(s)</small></span></label>`).join(''):'<p class="muted">Cadastre matérias e conteúdos em pelo menos dois concursos para começar.</p>'}
+function aiInput(){return aiCandidates().filter(x=>aiSelected.has(x.id)).map(x=>({...x,subjects:x.subjects.map(s=>({subject:s.subject,topics:s.topics.slice(0,150)}))}))}
+async function aiHash(v){const bytes=new TextEncoder().encode(JSON.stringify(v));const digest=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('')}
+function aiDisplay(result,source){const root=document.getElementById('aiResults');if(!root)return;const selected=new Map(aiInput().map(x=>[x.id,x]));const groups=Array.isArray(result.groups)?result.groups:[];const valid=groups.map(g=>{let evidence=(Array.isArray(g.evidence)?g.evidence:[]).filter(e=>selected.has(String(e.contestId))&&typeof e.original==='string').map(e=>({contestId:String(e.contestId),original:e.original,relation:e.relation==='related'?'related':'equivalent'}));const unique=[...new Set(evidence.map(e=>e.contestId))];return {title:String(g.title||'Assunto não identificado'),evidence,count:unique.length}}).filter(g=>g.count>=1).sort((a,b)=>b.count-a.count||a.title.localeCompare(b.title,'pt-BR'));root.innerHTML=`<p class="ai-note">${source==='cache'?'Resultado salvo neste navegador.':'Análise concluída.'} ${valid.length} grupo(s) de assuntos. Verifique as descrições originais antes de definir seu planejamento.</p>`+(valid.length?valid.map((g,i)=>`<article class="ai-result"><h3>${i+1}º — ${esc(g.title)} <span class="badge b-blue">${g.count} de ${selected.size} concurso(s)</span></h3><div class="ai-meter"><div style="width:${Math.min(100,100*g.count/Math.max(1,selected.size))}%"></div></div>${g.evidence.map(e=>`<div class="ai-evidence"><b>${esc(selected.get(e.contestId)?.name||'Concurso')}</b> • ${e.relation==='related'?'Relacionado / parcial':'Equivalente'}<div>${esc(e.original)}</div></div>`).join('')}</article>`).join(''):'<div class="empty">Nenhum assunto agrupado. Revise os conteúdos cadastrados.</div>');}
+async function aiAnalyze(){if(aiBusy)return;const data=aiInput(),status=document.getElementById('aiStatus');if(data.length<2){status.textContent='Selecione pelo menos dois concursos com matérias cadastradas.';return}if(!window.centralAI?.analyze){status.textContent='A conexão com o Gemini ainda não está pronta. Confira Firebase AI Logic e App Check.';return}const key=await aiHash(data);aiLastKey=key;const cacheKey='centralAI_'+key;try{const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');if(cached?.groups){aiDisplay(cached,'cache');status.textContent='Resultado recuperado sem nova chamada à IA.';return}}catch(e){}aiBusy=true;const btn=document.getElementById('aiAnalyze');btn.disabled=true;status.textContent='Analisando os conteúdos com Gemini. Aguarde...';try{const result=await window.centralAI.analyze(data);if(aiLastKey!==key)return;localStorage.setItem(cacheKey,JSON.stringify(result));aiDisplay(result,'fresh');status.textContent='Análise concluída. Resultado salvo neste navegador.'}catch(e){status.textContent='Não foi possível analisar: '+(e?.message||'Erro desconhecido')+'. Verifique App Check, modelo e cota gratuita.';console.error(e)}finally{aiBusy=false;btn.disabled=false}}
+document.getElementById('aiSelection').addEventListener('change',e=>{if(e.target.matches('[data-ai-id]')){if(e.target.checked)aiSelected.add(e.target.dataset.aiId);else aiSelected.delete(e.target.dataset.aiId)}});
+document.getElementById('aiSelectAll').onclick=()=>{aiSelected=new Set(aiCandidates().map(x=>x.id));renderAISelection()};
+document.getElementById('aiClear').onclick=()=>{aiSelected.clear();renderAISelection();document.getElementById('aiResults').innerHTML=''};
+document.getElementById('aiAnalyze').onclick=aiAnalyze;
 function renderAlerts(){
  const out=[], all=filtered(), today=new Date();today.setHours(0,0,0,0);
  const add=(level,title,detail,ids=[])=>out.push({level,title,detail,ids});
@@ -494,6 +508,8 @@ render();
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,onSnapshot,writeBatch,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {initializeAppCheck,ReCaptchaEnterpriseProvider} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js';
+import {getAI,getGenerativeModel,GoogleAIBackend} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js';
 
 const status=document.getElementById('cloudStatus');
 const wall=document.getElementById('authWall');
@@ -507,6 +523,19 @@ if(!config?.apiKey || !config?.projectId || config.apiKey.includes('COLE_')){
 }else{
   try {
     const app=initializeApp(config);
+    // Chave de SITE do reCAPTCHA Enterprise (pública). Não usar chave secreta.
+    initializeAppCheck(app,{provider:new ReCaptchaEnterpriseProvider('6Lc4RB4uAAAAAD9xNtlUnAJxUH2JAjKmmTO4kR1y'),isTokenAutoRefreshEnabled:true});
+    const ai=getAI(app,{backend:new GoogleAIBackend()});
+    const aiModel=getGenerativeModel(ai,{model:'gemini-2.5-flash',generationConfig:{responseMimeType:'application/json',temperature:0.15,maxOutputTokens:8192}});
+    window.centralAI={analyze:async data=>{
+      if(!window.centralCloud?.ready)throw new Error('Faça login e aguarde a sincronização');
+      const prompt=`Você é um analista de conteúdos programáticos de concursos públicos brasileiros. Compare APENAS os dados fornecidos, sem consultar fontes externas. Agrupe tópicos semanticamente equivalentes apesar de grafias e descrições diferentes. Separe assuntos apenas relacionados/parcialmente sobrepostos, marcando relation=related, e assuntos realmente equivalentes com relation=equivalent. Não agrupe matérias amplas diferentes sem evidência concreta. Não invente tópicos, concursos nem ocorrências. Cada evidência deve citar exatamente o contestId recebido e um texto original literal (assunto ou matéria) presente na entrada. Se houver tópicos detalhados, priorize compará-los em vez de apenas títulos de matérias. Para matérias sem tópicos, use o título como evidência e deixe o agrupamento amplo. Um concurso só conta uma vez por grupo. Inclua também assuntos exclusivos se houver espaço. Responda SOMENTE JSON válido no formato {"groups":[{"title":"nome normalizado do assunto","evidence":[{"contestId":"id","original":"texto original","relation":"equivalent ou related"}]}]}. Limite a 60 grupos mais relevantes, preferindo os recorrentes. DADOS: ${JSON.stringify(data)}`;
+      const response=await aiModel.generateContent(prompt);
+      const raw=response.response.text();
+      const parsed=JSON.parse(raw);
+      if(!parsed||!Array.isArray(parsed.groups))throw new Error('Resposta inesperada da IA');
+      return parsed;
+    }};
     const auth=getAuth(app),db=getFirestore(app);
     let unsubscribe=null,uid=null,remote=new Map(),pending=Promise.resolve(),writing=false,queuedSnapshot=null;
     wall.classList.remove('hidden');
